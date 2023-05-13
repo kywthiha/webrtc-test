@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Audio/Video Call Example</title>
+  </head>
+  <body>
+    <h1>Audio/Video Call Example</h1>
+    <p>Your ID: <span id="userId"></span></p>
+    <p>Target ID: <input type="text" id="targetId" /></p>
+    <button onclick="call()">Call</button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+
+      socket.on("connect", () => {
+        console.log(socket.id);
+
+        // Set user ID
+        document.getElementById("userId").innerText = socket.id;
+      });
+
+      // Handle incoming call
+      socket.on("incomingCall", (data) => {
+        const accept = confirm(
+          "Incoming call from " + data.callerId + ". Accept?"
+        );
+        if (accept) {
+          socket.emit("acceptCall", { callerId: data.callerId });
+          window.location.href = "/call.html";
+        } else {
+          socket.emit("rejectCall", { callerId: data.callerId });
+        }
+      });
+
+      // Handle call acceptance
+      socket.on("callAccepted", (data) => {
+        console.log("call accepted", data);
+        window.location.href = "/call.html";
+      });
+
+      // Handle call rejection
+      socket.on("callRejected", (data) => {
+        console.log("call rejected", data);
+      });
+
+      // Call function
+      function call() {
+        const targetId = document.getElementById("targetId").value;
+        socket.emit("call", { callerId: socket.id, targetId: targetId });
+      }
+    </script>
+  </body>
+</html>

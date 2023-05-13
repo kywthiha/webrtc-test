@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>WebRTC Audio/Video Call</title>
+  </head>
+  <body>
+    <h1>WebRTC Audio/Video Call</h1>
+    <div>
+      <video id="localVideo" autoplay></video>
+      <video id="remoteVideo" autoplay></video>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+
+      // Get access to local media stream
+      navigator.mediaDevices
+        .getUserMedia({ video: true, audio: true })
+        .then((stream) => {
+          console.log("Local media stream:", stream);
+          const localVideo = document.getElementById("localVideo");
+          localVideo.srcObject = stream;
+          // Add local media tracks to peer connection
+          stream.getTracks().forEach((track) => {
+            peerConnection.addTrack(track, stream);
+          });
+        })
+        .catch((error) => {
+          console.error("Error accessing local media:", error);
+        });
+
+      // Create peer connection object
+      const peerConnection = new RTCPeerConnection();
+
+      // Set up event handlers for peer connection object
+      peerConnection.ontrack = (event) => {
+        console.log("Incoming remote stream:", event.streams[0]);
+        const remoteVideo = document.getElementById("remoteVideo");
+        remoteVideo.srcObject = event.streams[0];
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        console.log("Outgoing ICE candidate:", event.candidate);
+        if (event.candidate) {
+          socket.emit("iceCandidate", { candidate: event.candidate });
+        }
+      };
+
+      peerConnection.ondatachannel = (event) => {
+        console.log("Incoming data channel:", event.channel);
+        // Handle incoming data channel
+      };
+
+      // Create offer and send to server
+      peerConnection
+        .createOffer()
+        .then((offer) => {
+          console.log("Local offer:", offer);
+          return peerConnection.setLocalDescription(offer);
+        })
+        .then(() => {
+          console.log("Sending local offer:", peerConnection.localDescription);
+          socket.emit("offer", { offer: peerConnection.localDescription });
+        })
+        .catch((error) => {
+          console.error("Error creating offer:", error);
+        });
+
+      // Handle incoming offer
+      socket.on("offer", (data) => {
+        console.log("Incoming offer:", data.offer);
+        // Create new peer connection object
+        const peerConnection = new RTCPeerConnection();
+
+        // Set up event handlers for new peer connection object
+        peerConnection.ontrack = (event) => {
+          console.log("Incoming remote stream:", event.streams[0]);
+          const remoteVideo = document.getElementById("remoteVideo");
+          remoteVideo.srcObject = event.streams[0];
+        };
+
+        peerConnection.onicecandidate = (event) => {
+          console.log("Outgoing ICE candidate:", event.candidate);
+          if (event.candidate) {
+            socket.emit("iceCandidate", { candidate: event.candidate });
+          }
+        };
+
+        peerConnection.ondatachannel = (event) => {
+          console.log("Incoming data channel:", event.channel);
+          // Handle incoming data channel
+        };
+
+        // Set remote description
+        peerConnection
+          .setRemoteDescription(new RTCSessionDescription(data.offer))
+          .then(() => {
+            console.log("Remote description set");
+          })
+          .catch((error) => {
+            console.error("Error setting remote description:", error);
+          });
+
+        // Create answer and send to server
+        peerConnection
+          .createAnswer()
+          .then((answer) => {
+            console.log("Local answer:", answer);
+            return peerConnection.setLocalDescription(answer);
+          })
+          .then(() => {
+            console.log(
+              "Sending local answer:",
+              peerConnection.localDescription
+            );
+            socket.emit("answer", { answer: peerConnection.localDescription });
+          })
+          .catch((error) => {
+            console.error("Error creating answer:", error);
+          });
+
+        // Handle incoming ICE candidate
+        socket.on("iceCandidate", (data) => {
+          console.log("Incoming ICE candidate:", data.candidate);
+          peerConnection
+            .addIceCandidate(new RTCIceCandidate(data.candidate))
+            .then(() => {
+              console.log("ICE candidate added");
+            })
+            .catch((error) => {
+              console.error("Error adding ICE candidate:", error);
+            });
+        });
+      });
+
+      // Handle incoming answer
+      socket.on("answer", (data) => {
+        console.log("Incoming answer:", data.answer);
+        // Set remote description
+        peerConnection
+          .setRemoteDescription(new RTCSessionDescription(data.answer))
+          .then(() => {
+            console.log("Remote description set");
+          })
+          .catch((error) => {
+            console.error("Error setting remote description:", error);
+          });
+      });
+    </script>
+  </body>
+</html>
